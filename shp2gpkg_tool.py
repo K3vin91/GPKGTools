@@ -12,12 +12,12 @@ from qgis.core import (
 def convertir_shapefiles(carpeta_entrada, carpeta_salida, epsg_destino=None,
                          cancel_callback=None, log_callback=None):
     """
-    Convierte todos los shapefiles de una carpeta a GPKG usando PyQGIS.
+    Convierte todos los shapefiles de una carpeta a GPKG usando PyQGIS,
+    respetando la estructura de subcarpetas de la carpeta de entrada.
     Cada shapefile genera un GeoPackage independiente.
     """
     carpeta_entrada = Path(carpeta_entrada)
     carpeta_salida = Path(carpeta_salida)
-    carpeta_salida.mkdir(parents=True, exist_ok=True)
 
     shapefiles = list(carpeta_entrada.rglob("*.shp"))
     resumen = []
@@ -72,8 +72,11 @@ def convertir_shapefiles(carpeta_entrada, carpeta_salida, epsg_destino=None,
             else:
                 export_layer = layer
 
-            # Ruta de salida
-            ruta_salida = carpeta_salida / (ruta.stem + ".gpkg")
+            # Construir ruta de salida respetando subcarpetas
+            ruta_relativa = ruta.relative_to(carpeta_entrada).parent
+            carpeta_salida_completa = carpeta_salida / ruta_relativa
+            carpeta_salida_completa.mkdir(parents=True, exist_ok=True)
+            ruta_salida = carpeta_salida_completa / (ruta.stem + ".gpkg")
 
             # Si el GPKG existe, borrarlo antes de crear uno nuevo
             if ruta_salida.exists():
@@ -107,7 +110,7 @@ def convertir_shapefiles(carpeta_entrada, carpeta_salida, epsg_destino=None,
             if log_callback:
                 log_callback(msg)
 
-    # Guardar resumen
+    # Guardar resumen (sin registrar cada ruta relativa en log)
     ruta_resumen = carpeta_salida / "resumen_conversion.txt"
     with open(ruta_resumen, "w", encoding="utf-8") as f:
         f.write("\n".join(resumen))
