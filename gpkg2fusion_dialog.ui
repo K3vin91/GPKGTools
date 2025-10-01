@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Gpkg2FusionDialog</class>
+ <widget class="QDialog" name="Gpkg2FusionDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>600</width>
+    <height>450</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Fusionar a GPKG</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+
+   <!-- Carpeta de entrada -->
+   <item>
+    <layout class="QHBoxLayout" name="inputLayout">
+     <item>
+      <widget class="QLineEdit" name="inputFolderLineEdit"/>
+     </item>
+     <item>
+      <widget class="QPushButton" name="inputBrowseButton">
+       <property name="text">
+        <string>Explorar...</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+
+   <!-- Archivo GPKG de salida -->
+   <item>
+    <layout class="QHBoxLayout" name="outputLayout">
+     <item>
+      <widget class="QLineEdit" name="outputGpkgLineEdit"/>
+     </item>
+     <item>
+      <widget class="QPushButton" name="outputBrowseButton">
+       <property name="text">
+        <string>Explorar...</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+
+   <!-- EPSG destino -->
+   <item>
+    <layout class="QHBoxLayout" name="epsgLayout">
+     <item>
+      <widget class="QLabel" name="epsgLabel">
+       <property name="text">
+        <string>EPSG (opcional):</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLineEdit" name="epsgLineEdit"/>
+     </item>
+    </layout>
+   </item>
+
+   <!-- Log de ejecución -->
+   <item>
+    <widget class="QTextEdit" name="logTextEdit">
+     <property name="readOnly">
+      <bool>true</bool>
+     </property>
+     <property name="placeholderText">
+      <string>Mensajes de ejecución...</string>
+     </property>
+    </widget>
+   </item>
+
+   <!-- Botones Ejecutar y Cancelar -->
+   <item>
+    <layout class="QHBoxLayout" name="buttonsLayout">
+     <item>
+      <widget class="QPushButton" name="runButton">
+       <property name="text">
+        <string>Ejecutar</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="cancelButton">
+       <property name="text">
+        <string>Cancelar</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

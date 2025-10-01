@@ -1,0 +1,7 @@
+<RCC>
+    <qresource prefix="/plugins/gpkg_tools" >
+        <file>icon_shp2gpkg.png</file>
+        <file>icon_gpkg2shp.png</file>
+        <file>icon_gpkg2fusion.png</file>
+    </qresource>
+</RCC>

@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Shp2GpkgDialog</class>
+ <widget class="QDialog" name="Shp2GpkgDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>800</width>
+    <height>500</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>SHP → GPKG</string>
+  </property>
+  <layout class="QHBoxLayout" name="mainLayout">
+
+   <!-- Columna izquierda: opciones -->
+   <item>
+    <layout class="QVBoxLayout" name="leftLayout">
+
+     <!-- Carpeta de entrada -->
+     <item>
+      <widget class="QLabel" name="inputLabel">
+       <property name="text">
+        <string>📂 Carpeta de entrada (Shapefiles):</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="inputLayout">
+       <item>
+        <widget class="QLineEdit" name="inputFolderLineEdit"/>
+       </item>
+       <item>
+        <widget class="QPushButton" name="inputBrowseButton">
+         <property name="text">
+          <string>Explorar...</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+
+     <!-- Carpeta de salida -->
+     <item>
+      <widget class="QLabel" name="outputLabel">
+       <property name="text">
+        <string>💾 Carpeta de salida (GeoPackage):</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="outputLayout">
+       <item>
+        <widget class="QLineEdit" name="outputFolderLineEdit"/>
+       </item>
+       <item>
+        <widget class="QPushButton" name="outputBrowseButton">
+         <property name="text">
+          <string>Explorar...</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+
+     <!-- EPSG destino -->
+     <item>
+      <widget class="QLabel" name="epsgLabelTitle">
+       <property name="text">
+        <string>🌍 EPSG (opcional):</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="epsgLayout">
+       <item>
+        <widget class="QLineEdit" name="epsgLineEdit"/>
+       </item>
+      </layout>
+     </item>
+
+     <!-- Log de ejecución -->
+     <item>
+      <widget class="QLabel" name="logLabel">
+       <property name="text">
+        <string>📜 Registro de ejecución:</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QTextEdit" name="logTextEdit">
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+       <property name="placeholderText">
+        <string>Mensajes de ejecución...</string>
+       </property>
+      </widget>
+     </item>
+
+     <!-- Botones -->
+     <item>
+      <layout class="QHBoxLayout" name="buttonsLayout">
+       <item>
+        <widget class="QPushButton" name="runButton">
+         <property name="text">
+          <string>▶ Ejecutar</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="cancelButton">
+         <property name="text">
+          <string>❌ Cancelar</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+
+    </layout>
+   </item>
+
+   <!-- Columna derecha: descripción + advertencia -->
+   <item>
+    <layout class="QVBoxLayout" name="rightLayout">
+     <item>
+      <widget class="QTextEdit" name="descriptionText">
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+       <property name="html">
+        <string>
+         <![CDATA[
+         <h1><b>shp2gpkg</b></h1>
+         <p><b>Descripción de la herramienta:</b></p>
+         <p>Convierte todos los archivos <b>Shapefile (.shp)</b> de la carpeta seleccionada (y de sus subcarpetas internas) en archivos <b>GeoPackage (.gpkg)</b>, 
+            conservando la misma estructura de carpetas y generando un archivo resumen con los resultados de las capas transformadas.</p>
+         <ul>
+           <li><b>Carpeta de entrada:</b> donde están los shapefiles.</li>
+           <li><b>Carpeta de salida:</b> destino de los .gpkg.</li>
+           <li><b>EPSG (opcional):</b> reproyecta los datos al EPSG indicado.</li>
+         </ul>
+         <p><b>⚠ Advertencia:</b> Si no se ingresa un valor de EPSG o se escriben letras, cada capa conservará su sistema de referencia original. 
+            Las que originamente no tengan un EPSG se les asignará el 4326 por defecto. Si se ingresa un número EPSG inválido, la conversión de las capas fallarán y el resultado será vacío.</p>
+         <p><b>⚠ Advertencia importante:</b> Si un archivo GPKG ya existe, la capa correspondiente será reemplazada automáticamente.</p>
+         ]]>
+        </string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
+

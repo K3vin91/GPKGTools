@@ -1,0 +1,47 @@
+# This file contains metadata for your plugin.
+
+# This file should be included when you package your plugin.# Mandatory items:
+
+[general]
+name=GPKG Tools
+qgisMinimumVersion=3.0
+description=Es un complemento diseñado para simplificar el manejo de GeoPackages
+version=0.1
+author=Kevin Irias
+email=kevin.irias.47@gmail.com
+
+about=Un plugin para automatizar la gestión de archivos geoespaciales en formato GeoPackage. Sus herramientas trabajan sobre la carpeta indicada (incluyendo subcarpetas), procesando todos los archivos encontrados y generando un informe de las capas procesadas. shp2gpkg: Convierte todos los shapefiles encontrados dentro de la carpeta seleccionada (y sus subcarpetas) a GeoPackage. Cada capa se guarda en un único GPKG de salida. gpkg2shp: Extrae y convierte todas las capas contenidas en uno o varios GeoPackage de una carpeta indicada y exportándolas como shapefiles. gpkg2fusion: Combina en un solo GeoPackage capas de distintos formatos (SHP, GPKG, GeoJSON) encontrados en la carpeta seleccionada. Útil para unificar fuentes dispersas en un único archivo estándar.
+
+tracker=https://github.com/K3vin91/GPKGTools/issues
+repository=https://github.com/K3vin91/GPKGTools
+# End of mandatory metadata
+
+# Recommended items:
+
+hasProcessingProvider=no
+# Uncomment the following line and add your changelog:
+# changelog=
+
+# Tags are comma separated with spaces allowed
+tags=python
+
+homepage=http://homepage
+category=Plugins
+icon=icon.png
+# experimental flag
+experimental=True
+
+# deprecated flag (applies to the whole plugin, not just a single version)
+deprecated=False
+
+# Since QGIS 3.8, a comma separated list of plugins to be installed
+# (or upgraded) can be specified.
+# Check the documentation for more information.
+# plugin_dependencies=
+
+Category of the plugin: Raster, Vector, Database or Web
+# category=
+
+# If the plugin can run on QGIS Server.
+server=False
+
