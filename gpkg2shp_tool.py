@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 from pathlib import Path
 from qgis.core import (
-    Qgis,
-    QgsMessageLog,
     QgsVectorLayer,
-    QgsVectorFileWriter,
     QgsCoordinateReferenceSystem,
-    QgsProject
+    QgsVectorFileWriter,
+    QgsProject,
+    QgsCoordinateTransform,
+    QgsFeature,
+    QgsWkbTypes
 )
 from osgeo import ogr
 
@@ -39,14 +40,13 @@ def convertir_gpkg_a_shp(carpeta_entrada, carpeta_salida, epsg_destino=None,
             ds = ogr.Open(str(ruta_gpkg))
             if ds is None:
                 raise Exception("No se pudo abrir el GPKG con OGR.")
-            
+
             capas_nombres = [ds.GetLayerByIndex(i).GetName() for i in range(ds.GetLayerCount())]
             if log_callback:
                 log_callback(f"📦 Procesando GPKG: {ruta_gpkg.name} → {len(capas_nombres)} capas encontradas")
 
         except Exception as e:
             msg = f"❌ {ruta_gpkg.name}: fallo al listar capas → {e}"
-            QgsMessageLog.logMessage(msg, "GPKG Tools", Qgis.Critical)
             if log_callback:
                 log_callback(msg)
             resumen.append(msg)
@@ -60,7 +60,6 @@ def convertir_gpkg_a_shp(carpeta_entrada, carpeta_salida, epsg_destino=None,
                     msg = f"⚠️ {ruta_gpkg.stem}: capa sin nombre #{contador_sin_nombre} → omitida."
                     contador_sin_nombre += 1
                     resumen.append(msg)
-                    QgsMessageLog.logMessage(msg, "GPKG Tools", Qgis.Warning)
                     if log_callback:
                         log_callback(msg)
                     continue
@@ -85,26 +84,32 @@ def convertir_gpkg_a_shp(carpeta_entrada, carpeta_salida, epsg_destino=None,
                 if not layer.crs().isValid():
                     mensaje_extra += f" (CRS indefinido → EPSG:{crs_destino.postgisSrid()})"
                     msg = f"⚠️ {ruta_gpkg.stem}:{nombre_export} → CRS indefinido, asignado EPSG:{crs_destino.postgisSrid()}"
-                    QgsMessageLog.logMessage(msg, "GPKG Tools", Qgis.Warning)
                     if log_callback:
                         log_callback(msg)
 
-                # Reproyectar si es necesario, preservando geometría original
+                # Crear capa en memoria con geometría correcta
+                geom_type = QgsWkbTypes.displayString(layer.wkbType())
+                mem_layer = QgsVectorLayer(f"{geom_type}?crs={crs_destino.authid()}", nombre_export, "memory")
+                mem_layer_data = mem_layer.dataProvider()
+                mem_layer_data.addAttributes(layer.fields())
+                mem_layer.updateFields()
+
+                # Transformar geometrías si es necesario
+                xform = None
                 if layer.crs() != crs_destino:
-                    mem_layer = QgsVectorLayer(
-                        "{}?crs={}".format(layer.dataProvider().dataSourceUri(), crs_destino.postgisSrid()),
-                        layer.name(),
-                        "memory"
-                    )
-                    mem_layer.startEditing()
-                    for f in layer.getFeatures():
-                        mem_layer.addFeature(f)
-                    mem_layer.commitChanges()
-                    export_layer = mem_layer
-                    if "(Reproyectado" not in mensaje_extra:
-                        mensaje_extra += f" (Reproyectado a EPSG:{crs_destino.postgisSrid()})"
-                else:
-                    export_layer = layer
+                    xform = QgsCoordinateTransform(layer.crs(), crs_destino, transform_context)
+                    mensaje_extra += f" (Reproyectado a EPSG:{crs_destino.postgisSrid()})"
+
+                for feat in layer.getFeatures():
+                    geom = feat.geometry()
+                    if geom and xform:
+                        geom.transform(xform)
+                    new_feat = QgsFeature()
+                    new_feat.setGeometry(geom)
+                    new_feat.setAttributes(feat.attributes())
+                    mem_layer_data.addFeature(new_feat)
+
+                export_layer = mem_layer
 
                 # Ruta de salida
                 ruta_relativa = ruta_gpkg.relative_to(carpeta_entrada).parent
@@ -120,6 +125,7 @@ def convertir_gpkg_a_shp(carpeta_entrada, carpeta_salida, epsg_destino=None,
                 # Guardar SHP
                 options = QgsVectorFileWriter.SaveVectorOptions()
                 options.driverName = "ESRI Shapefile"
+                options.fileEncoding = "UTF-8"
 
                 result, error_message = QgsVectorFileWriter.writeAsVectorFormatV2(
                     export_layer,
@@ -131,17 +137,13 @@ def convertir_gpkg_a_shp(carpeta_entrada, carpeta_salida, epsg_destino=None,
                     raise Exception(error_message)
 
                 resumen.append(f"{ruta_gpkg.stem}:{nombre_export} → convertido{mensaje_extra}")
-                msg = f"✅ {ruta_gpkg.stem}:{nombre_export} → convertido{mensaje_extra}"
-                QgsMessageLog.logMessage(msg, "GPKG Tools", Qgis.Info)
                 if log_callback:
-                    log_callback(msg)
+                    log_callback(f"✅ {ruta_gpkg.stem}:{nombre_export} → convertido{mensaje_extra}")
 
             except Exception as e:
                 resumen.append(f"{ruta_gpkg.stem}:{nombre_export} → fallido → {e}")
-                msg = f"❌ {ruta_gpkg.stem}:{nombre_export} → fallido → {e}"
-                QgsMessageLog.logMessage(msg, "GPKG Tools", Qgis.Critical)
                 if log_callback:
-                    log_callback(msg)
+                    log_callback(f"❌ {ruta_gpkg.stem}:{nombre_export} → fallido → {e}")
 
     # Guardar resumen
     ruta_resumen = carpeta_salida / "resumen_conversion.txt"
