@@ -24,6 +24,7 @@ class Gpkg2ShpDialog(QDialog, FORM_CLASS):
         self.cancelButton.clicked.connect(self.cancel_task)
 
         self.task = None
+        self.task_active = False  # <-- flag para saber si la tarea está activa
 
         # Mensaje inicial en log
         self.logTextEdit.append("🗂️ Reporte de capas extraídas de GPKG a Shapefiles")
@@ -56,17 +57,18 @@ class Gpkg2ShpDialog(QDialog, FORM_CLASS):
         self.logTextEdit.clear()
         self.logTextEdit.append("▶ Iniciando extracción de GPKG a Shapefiles...")
 
-        # Deshabilitar botón mientras se procesa
-        self.runButton.setEnabled(False)
-
         # Crear tarea
         self.task = GpkgToShpTask(input_path, output_path, epsg, self.logTextEdit, self)
+        self.task_active = True  # <-- marcar la tarea como activa
         QgsApplication.taskManager().addTask(self.task)
 
     def cancel_task(self):
-        if self.task:
+        # Solo cancelar si la tarea está activa
+        if getattr(self, "task_active", False) and self.task:
             self.task.cancel()
             self.logTextEdit.append("⏹ Cancelando tarea...")
+        else:
+            self.logTextEdit.append(" ")
 
 # ----------------------------------------------------
 class GpkgToShpTask(QgsTask):
@@ -107,13 +109,17 @@ class GpkgToShpTask(QgsTask):
         return True
 
     def finished(self, result):
-        # Evitar errores si la tarea fue cancelada
+        # Marcar tarea como inactiva
+        if self.dialog:
+            self.dialog.task_active = False
+
         if self.cancelled_flag:
             if self.log_widget:
                 self.log_widget.append("⏹ Tarea cancelada por el usuario.")
         else:
             if self.log_widget:
                 self.log_widget.append("✅ Tarea finalizada.")
-        # Rehabilitar botón de forma segura
+
+        # Rehabilitar botón Run
         if self.dialog and hasattr(self.dialog, "runButton"):
             self.dialog.runButton.setEnabled(True)

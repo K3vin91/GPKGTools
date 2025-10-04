@@ -8,6 +8,7 @@ from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsProject
 )
+from osgeo import ogr
 
 def convertir_gpkg_a_shp(carpeta_entrada, carpeta_salida, epsg_destino=None,
                          cancel_callback=None, log_callback=None):
@@ -35,13 +36,14 @@ def convertir_gpkg_a_shp(carpeta_entrada, carpeta_salida, epsg_destino=None,
             break
 
         try:
-            temp_layer = QgsVectorLayer(str(ruta_gpkg), "temp", "ogr")
-            if not temp_layer.isValid():
-                raise Exception("No se pudo cargar el GPKG para obtener capas.")
-            capas_raw = temp_layer.dataProvider().subLayers()
-            capas_nombres = [c.split(":")[1].strip() for c in capas_raw]
+            ds = ogr.Open(str(ruta_gpkg))
+            if ds is None:
+                raise Exception("No se pudo abrir el GPKG con OGR.")
+            
+            capas_nombres = [ds.GetLayerByIndex(i).GetName() for i in range(ds.GetLayerCount())]
             if log_callback:
                 log_callback(f"📦 Procesando GPKG: {ruta_gpkg.name} → {len(capas_nombres)} capas encontradas")
+
         except Exception as e:
             msg = f"❌ {ruta_gpkg.name}: fallo al listar capas → {e}"
             QgsMessageLog.logMessage(msg, "GPKG Tools", Qgis.Critical)
@@ -54,7 +56,6 @@ def convertir_gpkg_a_shp(carpeta_entrada, carpeta_salida, epsg_destino=None,
         for nombre_original in capas_nombres:
             nombre_export = None
             try:
-                # Si la capa no tiene nombre → omitir con contador
                 if not nombre_original:
                     msg = f"⚠️ {ruta_gpkg.stem}: capa sin nombre #{contador_sin_nombre} → omitida."
                     contador_sin_nombre += 1
@@ -67,8 +68,8 @@ def convertir_gpkg_a_shp(carpeta_entrada, carpeta_salida, epsg_destino=None,
                 nombre_export = nombre_original
                 mensaje_extra = ""
 
-                # Construir URI seguro
-                uri = f"{ruta_gpkg}|layername=\"{nombre_original}\""
+                # Construir URI seguro para cargar capa
+                uri = f"{ruta_gpkg}|layername={nombre_original}"
                 layer = QgsVectorLayer(uri, nombre_export, "ogr")
                 if not layer.isValid():
                     raise Exception(f"No se pudo cargar la capa '{nombre_original}' desde {ruta_gpkg.name}")
@@ -88,7 +89,7 @@ def convertir_gpkg_a_shp(carpeta_entrada, carpeta_salida, epsg_destino=None,
                     if log_callback:
                         log_callback(msg)
 
-                # Reproyectar si es necesario
+                # Reproyectar si es necesario, preservando geometría original
                 if layer.crs() != crs_destino:
                     mem_layer = QgsVectorLayer(
                         "{}?crs={}".format(layer.dataProvider().dataSourceUri(), crs_destino.postgisSrid()),
