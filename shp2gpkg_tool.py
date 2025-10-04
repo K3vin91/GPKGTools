@@ -6,8 +6,12 @@ from qgis.core import (
     QgsVectorLayer,
     QgsVectorFileWriter,
     QgsCoordinateReferenceSystem,
+    QgsCoordinateTransform,
+    QgsFeature,
+    QgsWkbTypes,
     QgsProject
 )
+
 
 def convertir_shapefiles(carpeta_entrada, carpeta_salida, epsg_destino=None,
                          cancel_callback=None, log_callback=None):
@@ -16,6 +20,7 @@ def convertir_shapefiles(carpeta_entrada, carpeta_salida, epsg_destino=None,
     respetando la estructura de subcarpetas de la carpeta de entrada.
     Cada shapefile genera un GeoPackage independiente.
     """
+
     carpeta_entrada = Path(carpeta_entrada)
     carpeta_salida = Path(carpeta_salida)
 
@@ -58,14 +63,27 @@ def convertir_shapefiles(carpeta_entrada, carpeta_salida, epsg_destino=None,
 
             # Reproyectar si EPSG destino es distinto
             if layer.crs() != crs_destino:
-                mem_layer = QgsVectorLayer(
-                    "{}?crs={}".format(layer.dataProvider().dataSourceUri(), crs_destino.postgisSrid()),
-                    layer.name(),
-                    "memory"
-                )
+                transform = QgsCoordinateTransform(layer.crs(), crs_destino, QgsProject.instance())
+
+                # Detectar tipo de geometría original (Point, LineString, Polygon)
+                geom_type = QgsWkbTypes.displayString(layer.wkbType())
+                mem_layer_uri = "{}?crs={}".format(geom_type, crs_destino.authid())
+
+                mem_layer = QgsVectorLayer(mem_layer_uri, layer.name(), "memory")
                 mem_layer.startEditing()
-                for f in layer.getFeatures():
-                    mem_layer.addFeature(f)
+                mem_layer.dataProvider().addAttributes(layer.fields())
+                mem_layer.updateFields()
+
+                for feat in layer.getFeatures():
+                    new_feat = QgsFeature()
+                    new_feat.setFields(layer.fields())
+                    new_feat.setAttributes(feat.attributes())
+                    geom = feat.geometry()
+                    if geom:
+                        geom.transform(transform)
+                        new_feat.setGeometry(geom)
+                    mem_layer.addFeature(new_feat)
+
                 mem_layer.commitChanges()
                 export_layer = mem_layer
                 mensaje_extra = f" (Reproyectado a EPSG:{crs_destino.postgisSrid()})"
@@ -110,7 +128,7 @@ def convertir_shapefiles(carpeta_entrada, carpeta_salida, epsg_destino=None,
             if log_callback:
                 log_callback(msg)
 
-    # Guardar resumen (sin registrar cada ruta relativa en log)
+    # Guardar resumen
     ruta_resumen = carpeta_salida / "resumen_conversion.txt"
     with open(ruta_resumen, "w", encoding="utf-8") as f:
         f.write("\n".join(resumen))
