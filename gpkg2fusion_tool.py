@@ -1,24 +1,16 @@
 # -*- coding: utf-8 -*-
-import os
 from pathlib import Path
-import geopandas as gpd
-import fiona
-from pyproj import CRS
-from qgis.core import Qgis, QgsMessageLog
-
-def leer_capa(ruta, capa=None, epsg_destino=None, capas_sin_crs=None):
-    """Lee una capa de un archivo vectorial y reproyecta si es necesario."""
-    gdf = gpd.read_file(ruta, layer=capa) if capa else gpd.read_file(ruta)
-    if gdf.empty:
-        return None
-    if gdf.crs is None and capas_sin_crs is not None:
-        capas_sin_crs.append(capa or Path(ruta).stem)
-    if epsg_destino:
-        gdf = gdf.to_crs(epsg=epsg_destino)
-    return gdf
+from qgis.core import (
+    QgsVectorLayer,
+    QgsVectorFileWriter,
+    QgsMessageLog,
+    Qgis,
+    QgsCoordinateReferenceSystem,
+    QgsCoordinateTransform,
+    QgsProject
+)
 
 def obtener_nombre_unico(base, existentes):
-    """Genera nombre único evitando duplicados en el GPKG de salida."""
     nombre = base
     i = 1
     while nombre in existentes:
@@ -27,100 +19,120 @@ def obtener_nombre_unico(base, existentes):
     existentes.add(nombre)
     return nombre
 
-def procesar_gpkg(ruta, salida, epsg_destino, capas_existentes, resumen, capas_sin_crs):
-    """Procesa todas las capas de un GPKG."""
-    for capa in fiona.listlayers(ruta):
-        try:
-            gdf = leer_capa(ruta, capa, epsg_destino, capas_sin_crs)
-            if gdf is None:
-                msg = f"⚠️ {ruta} -> {capa}: vacía, ignorada"
+def procesar_gpkg(ruta, salida, capas_existentes, resumen, capas_sin_crs, epsg_destino=None, log_cb=None, cancel_cb=None):
+    """Procesa todas las capas de un GPKG usando PyQGIS con soporte de log y cancelación."""
+    try:
+        uri = str(ruta)
+        capa_base = QgsVectorLayer(uri, ruta.stem, "ogr")
+        for sub in capa_base.dataProvider().subLayers():
+            if cancel_cb and cancel_cb():
+                if log_cb:
+                    log_cb("⏹ Cancelación detectada, deteniendo fusión...")
+                return
+
+            nombre_capa = sub.split('!!::!!')[1]
+            capa = QgsVectorLayer(f"{uri}|layername={nombre_capa}", nombre_capa, "ogr")
+            if not capa.isValid() or capa.featureCount() == 0:
+                msg = f"⚠️ {ruta.name} → {nombre_capa}: vacía, ignorada"
                 resumen.append(msg)
+                if log_cb:
+                    log_cb(msg)
                 QgsMessageLog.logMessage(msg, "GPKG Tools", Qgis.Warning)
                 continue
-            archivo_base = Path(ruta).stem
-            nombre_capa = obtener_nombre_unico(f"{archivo_base}_{capa}", capas_existentes)
-            gdf.to_file(salida, layer=nombre_capa, driver="GPKG", mode="a")
-            msg = f"✅ {ruta} -> {capa}: exportada como {nombre_capa}"
-            resumen.append(msg)
-            QgsMessageLog.logMessage(msg, "GPKG Tools", Qgis.Info)
-        except Exception as e:
-            msg = f"❌ {ruta} -> {capa}: falló → {e}"
-            resumen.append(msg)
-            QgsMessageLog.logMessage(msg, "GPKG Tools", Qgis.Critical)
 
-def procesar_vector_simple(ruta, salida, epsg_destino, capas_existentes, resumen, capas_sin_crs):
-    """Procesa shapefile o geojson individual."""
-    try:
-        gdf = leer_capa(ruta, epsg_destino=epsg_destino, capas_sin_crs=capas_sin_crs)
-        if gdf is None:
-            msg = f"⚠️ {ruta}: vacío, ignorado"
+            # Reproyección si se indicó EPSG
+            if epsg_destino and capa.crs().isValid():
+                crs_destino = QgsCoordinateReferenceSystem(epsg_destino)
+                transform = QgsCoordinateTransform(capa.crs(), crs_destino, QgsProject.instance())
+                capa = capa.clone()
+                capa.setCrs(crs_destino)
+
+            nombre_capa_salida = obtener_nombre_unico(f"{ruta.stem}_{nombre_capa}", capas_existentes)
+
+            error = QgsVectorFileWriter.writeAsVectorFormat(
+                capa,
+                str(salida),
+                "utf-8",
+                layerName=nombre_capa_salida,
+                driverName="GPKG",
+                actionOnExistingFile=QgsVectorFileWriter.AppendToLayer
+            )
+
+            if error == QgsVectorFileWriter.NoError:
+                msg = f"✅ {ruta.name} → {nombre_capa}: exportada como {nombre_capa_salida}"
+            else:
+                msg = f"❌ {ruta.name} → {nombre_capa}: error al exportar"
             resumen.append(msg)
-            QgsMessageLog.logMessage(msg, "GPKG Tools", Qgis.Warning)
-            return
-        archivo_base = Path(ruta).stem
-        nombre_capa = obtener_nombre_unico(archivo_base, capas_existentes)
-        gdf.to_file(salida, layer=nombre_capa, driver="GPKG", mode="a")
-        msg = f"✅ {ruta}: exportado como {nombre_capa}"
-        resumen.append(msg)
-        QgsMessageLog.logMessage(msg, "GPKG Tools", Qgis.Info)
+            if log_cb:
+                log_cb(msg)
+            QgsMessageLog.logMessage(msg, "GPKG Tools", Qgis.Info if error == QgsVectorFileWriter.NoError else Qgis.Critical)
+
     except Exception as e:
-        msg = f"❌ {ruta}: falló → {e}"
+        msg = f"❌ {ruta.name}: error durante la fusión → {e}"
         resumen.append(msg)
+        if log_cb:
+            log_cb(msg)
         QgsMessageLog.logMessage(msg, "GPKG Tools", Qgis.Critical)
 
-def fusionar_vectores(carpeta, salida, epsg_destino=None):
-    """Fusiona todos los vectores en un único GPKG y genera resumen TXT."""
+def fusionar_vectores(carpeta, salida, epsg_destino=None, log_cb=None, cancel_cb=None):
+    """Fusiona todos los GPKG de una carpeta en un único GPKG usando PyQGIS con log y cancelación."""
     carpeta = Path(carpeta)
     salida = Path(salida)
 
-    # Validar EPSG
-    if epsg_destino:
-        epsg_destino = int(epsg_destino)
-        CRS.from_epsg(epsg_destino)  # valida que exista
-
-    # Si la salida es carpeta, crear archivo fusion.gpkg
+    # Asegurar que sea un archivo .gpkg
     if salida.is_dir() or salida.suffix.lower() != ".gpkg":
         salida.mkdir(parents=True, exist_ok=True)
         salida = salida / "fusion.gpkg"
 
-    # Borrar si existe
     if salida.exists():
         salida.unlink()
 
     capas_existentes = set()
     resumen = []
     capas_sin_crs = []
-    total, exitosos, fallidos = 0, 0, 0
+    total_archivos = 0
+    procesados = 0
+    fallidos = 0
 
-    for file in carpeta.rglob("*"):
+    for file in carpeta.rglob("*.gpkg"):
+        if cancel_cb and cancel_cb():
+            if log_cb:
+                log_cb("⏹ Cancelación detectada, deteniendo fusión...")
+            break
+
         if file.is_file():
-            ext = file.suffix.lower()
-            total += 1
-            if ext == ".gpkg":
-                procesar_gpkg(file, salida, epsg_destino, capas_existentes, resumen, capas_sin_crs)
-                exitosos += 1
-            elif ext in [".shp", ".geojson"]:
-                procesar_vector_simple(file, salida, epsg_destino, capas_existentes, resumen, capas_sin_crs)
-                exitosos += 1
-            else:
-                msg = f"⚠️ {file}: formato no soportado, ignorado"
+            total_archivos += 1
+            try:
+                procesar_gpkg(file, salida, capas_existentes, resumen, capas_sin_crs, epsg_destino, log_cb, cancel_cb)
+                procesados += 1
+            except Exception as e:
+                msg = f"❌ {file.name}: error durante la fusión → {e}"
                 resumen.append(msg)
-                QgsMessageLog.logMessage(msg, "GPKG Tools", Qgis.Warning)
+                if log_cb:
+                    log_cb(msg)
+                QgsMessageLog.logMessage(msg, "GPKG Tools", Qgis.Critical)
                 fallidos += 1
 
     # Guardar resumen
     resumen_path = salida.with_name(salida.stem + "_resumen.txt")
     with open(resumen_path, "w", encoding="utf-8") as f:
-        f.write("RESUMEN DE FUSIÓN DE VECTORES EN GPKG\n\n")
-        f.write(f"Carpeta procesada: {carpeta}\n")
-        f.write(f"Archivo de salida: {salida}\n\n")
-        f.write(f"Total de capas procesadas: {total}\n")
+        f.write("📘 RESUMEN DE FUSIÓN DE GPKG\n\n")
+        f.write(f"📂 Carpeta procesada: {carpeta}\n")
+        f.write(f"💾 Archivo de salida: {salida}\n\n")
+        f.write(f"Total de archivos GPKG procesados: {total_archivos}\n")
+        f.write(f"Archivos fusionados correctamente: {procesados}\n")
+        f.write(f"Archivos con errores: {fallidos}\n\n")
         if capas_sin_crs:
-            f.write(f"Capas sin CRS (requieren reproyección): {len(capas_sin_crs)}\n")
+            f.write("⚠️ Capas sin CRS (requieren revisión manual):\n")
             f.write("\n".join(capas_sin_crs) + "\n")
-        f.write(f"\nCapas exitosas: {exitosos}\n")
-        f.write(f"Archivos ignorados/fallidos: {fallidos}\n")
+        f.write("\n--- Detalle de ejecución ---\n")
+        f.write("\n".join(resumen))
+
+    if log_cb:
+        log_cb(f"✅ Fusión completada en: {salida}")
+        log_cb(f"📝 Resumen guardado en: {resumen_path}")
 
     QgsMessageLog.logMessage(f"✅ Fusión completada en: {salida}", "GPKG Tools", Qgis.Info)
     QgsMessageLog.logMessage(f"📝 Resumen guardado en: {resumen_path}", "GPKG Tools", Qgis.Info)
+
     return salida, resumen_path

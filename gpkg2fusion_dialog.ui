@@ -6,89 +6,151 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>600</width>
-    <height>450</height>
+    <width>800</width>
+    <height>500</height>
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Fusionar a GPKG</string>
+   <string>GPKG → Fusion</string>
   </property>
-  <layout class="QVBoxLayout" name="verticalLayout">
+  <layout class="QHBoxLayout" name="mainLayout">
 
-   <!-- Carpeta de entrada -->
+   <!-- Columna izquierda: opciones -->
    <item>
-    <layout class="QHBoxLayout" name="inputLayout">
+    <layout class="QVBoxLayout" name="leftLayout">
+
+     <!-- Carpeta de entrada -->
      <item>
-      <widget class="QLineEdit" name="inputFolderLineEdit"/>
-     </item>
-     <item>
-      <widget class="QPushButton" name="inputBrowseButton">
+      <widget class="QLabel" name="inputLabel">
        <property name="text">
-        <string>Explorar...</string>
+        <string>📂 Carpeta de entrada (GeoPackages a fusionar):</string>
        </property>
       </widget>
      </item>
+     <item>
+      <layout class="QHBoxLayout" name="inputLayout">
+       <item>
+        <widget class="QLineEdit" name="inputFolderLineEdit"/>
+       </item>
+       <item>
+        <widget class="QPushButton" name="inputBrowseButton">
+         <property name="text">
+          <string>Explorar...</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+
+     <!-- Archivo de salida -->
+     <item>
+      <widget class="QLabel" name="outputLabel">
+       <property name="text">
+        <string>💾 Archivo de salida (GeoPackage fusionado):</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="outputLayout">
+       <item>
+        <widget class="QLineEdit" name="outputFileLineEdit"/>
+       </item>
+       <item>
+        <widget class="QPushButton" name="outputBrowseButton">
+         <property name="text">
+          <string>Guardar como...</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+
+     <!-- EPSG destino -->
+     <item>
+      <widget class="QLabel" name="epsgLabelTitle">
+       <property name="text">
+        <string>🌍 EPSG (opcional, para reproyección):</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="epsgLayout">
+       <item>
+        <widget class="QLineEdit" name="epsgLineEdit"/>
+       </item>
+      </layout>
+     </item>
+
+     <!-- Log de ejecución -->
+     <item>
+      <widget class="QLabel" name="logLabel">
+       <property name="text">
+        <string>📜 Registro de ejecución:</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QTextEdit" name="logTextEdit">
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+       <property name="placeholderText">
+        <string>Mensajes de ejecución...</string>
+       </property>
+      </widget>
+     </item>
+
+     <!-- Botones -->
+     <item>
+      <layout class="QHBoxLayout" name="buttonsLayout">
+       <item>
+        <widget class="QPushButton" name="runButton">
+         <property name="text">
+          <string>▶ Ejecutar fusión</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="cancelButton">
+         <property name="text">
+          <string>❌ Cancelar</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+
     </layout>
    </item>
 
-   <!-- Archivo GPKG de salida -->
+   <!-- Columna derecha: descripción + advertencias -->
    <item>
-    <layout class="QHBoxLayout" name="outputLayout">
+    <layout class="QVBoxLayout" name="rightLayout">
      <item>
-      <widget class="QLineEdit" name="outputGpkgLineEdit"/>
-     </item>
-     <item>
-      <widget class="QPushButton" name="outputBrowseButton">
-       <property name="text">
-        <string>Explorar...</string>
+      <widget class="QTextEdit" name="descriptionText">
+       <property name="readOnly">
+        <bool>true</bool>
        </property>
-      </widget>
-     </item>
-    </layout>
-   </item>
-
-   <!-- EPSG destino -->
-   <item>
-    <layout class="QHBoxLayout" name="epsgLayout">
-     <item>
-      <widget class="QLabel" name="epsgLabel">
-       <property name="text">
-        <string>EPSG (opcional):</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QLineEdit" name="epsgLineEdit"/>
-     </item>
-    </layout>
-   </item>
-
-   <!-- Log de ejecución -->
-   <item>
-    <widget class="QTextEdit" name="logTextEdit">
-     <property name="readOnly">
-      <bool>true</bool>
-     </property>
-     <property name="placeholderText">
-      <string>Mensajes de ejecución...</string>
-     </property>
-    </widget>
-   </item>
-
-   <!-- Botones Ejecutar y Cancelar -->
-   <item>
-    <layout class="QHBoxLayout" name="buttonsLayout">
-     <item>
-      <widget class="QPushButton" name="runButton">
-       <property name="text">
-        <string>Ejecutar</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="cancelButton">
-       <property name="text">
-        <string>Cancelar</string>
+       <property name="html">
+        <string>
+         <![CDATA[
+         <h1><b>gpkg2fusion</b></h1>
+         <p><b>Descripción de la herramienta:</b></p>
+         <p>Fusiona todos los archivos <b>GeoPackage (.gpkg)</b> de la carpeta seleccionada (y de sus subcarpetas) 
+            en un único archivo GeoPackage de salida.</p>
+         <ul>
+           <li><b>Carpeta de entrada:</b> donde están los archivos GPKG a fusionar.</li>
+           <li><b>Archivo de salida:</b> ruta del GeoPackage resultante.</li>
+           <li><b>EPSG (opcional):</b> reproyecta las capas al EPSG indicado antes de fusionar.</li>
+         </ul>
+         <p><b>⚠ Advertencias:</b></p>
+         <ul>
+           <li>Si el archivo de salida ya existe, será sobrescrito.</li>
+           <li>Si un EPSG es inválido, la fusión fallará.</li>
+           <li>Si en el espacio del EPSG se escriben caracteres no numericos la herramienta conservará los EPSG de las capas originales.</li>
+         </ul>
+         ]]>
+        </string>
        </property>
       </widget>
      </item>

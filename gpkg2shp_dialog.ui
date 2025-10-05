@@ -146,7 +146,7 @@
          <p><b>⚠ Advertencias:</b></p>
          <ul>
            <li>Si un shapefile ya existe, será sobrescrito.</li>
-           <li>Si no se ingresa un EPSG, las capas conservarán su CRS original.</li>
+           <li>Si no se ingresa un EPSG o se ingresan caracteres no numericos las capas conservarán su CRS original.</li>
            <li>Si un EPSG es inválido, la conversión fallará.</li>
          </ul>
          ]]>
