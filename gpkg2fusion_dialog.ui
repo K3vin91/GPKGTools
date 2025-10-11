@@ -65,22 +65,6 @@
       </layout>
      </item>
 
-     <!-- EPSG destino -->
-     <item>
-      <widget class="QLabel" name="epsgLabelTitle">
-       <property name="text">
-        <string>🌍 EPSG (opcional, para reproyección):</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <layout class="QHBoxLayout" name="epsgLayout">
-       <item>
-        <widget class="QLineEdit" name="epsgLineEdit"/>
-       </item>
-      </layout>
-     </item>
-
      <!-- Log de ejecución -->
      <item>
       <widget class="QLabel" name="logLabel">
@@ -141,13 +125,10 @@
          <ul>
            <li><b>Carpeta de entrada:</b> donde están los archivos GPKG a fusionar.</li>
            <li><b>Archivo de salida:</b> ruta del GeoPackage resultante.</li>
-           <li><b>EPSG (opcional):</b> reproyecta las capas al EPSG indicado antes de fusionar.</li>
          </ul>
          <p><b>⚠ Advertencias:</b></p>
          <ul>
            <li>Si el archivo de salida ya existe, será sobrescrito.</li>
-           <li>Si un EPSG es inválido, la fusión fallará.</li>
-           <li>Si en el espacio del EPSG se escriben caracteres no numericos la herramienta conservará los EPSG de las capas originales.</li>
          </ul>
          ]]>
         </string>

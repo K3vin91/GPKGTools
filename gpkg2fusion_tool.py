@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pathlib import Path
-from osgeo import ogr, osr
+from osgeo import ogr
 from qgis.core import QgsMessageLog, Qgis
 
 def obtener_nombre_unico(base, existentes):
@@ -19,19 +19,16 @@ def abrir_gpkg(path):
         raise RuntimeError(f"No se pudo abrir: {path}")
     return ds
 
-def copiar_capa(in_layer, out_ds, nombre_capa, epsg_destino=None):
+def copiar_capa(in_layer, out_ds, nombre_capa):
+    """Copia la capa sin reproyectar, retorna el EPSG original de la capa."""
     srs = in_layer.GetSpatialRef()
-    if epsg_destino:
-        srs_dest = osr.SpatialReference()
-        srs_dest.ImportFromEPSG(int(epsg_destino))
-        out_layer = out_ds.CopyLayer(in_layer, nombre_capa, ["DST_SRS=" + srs_dest.ExportToWkt()])
-    else:
-        out_layer = out_ds.CopyLayer(in_layer, nombre_capa)
+    epsg = srs.GetAttrValue("AUTHORITY", 1) if srs else "Sin CRS"
+    out_layer = out_ds.CopyLayer(in_layer, nombre_capa)
     if not out_layer:
         raise RuntimeError(f"Error copiando capa {nombre_capa}")
-    return out_layer
+    return out_layer, epsg
 
-def procesar_gpkg(ruta, out_ds, capas_existentes, resumen, capas_sin_crs, epsg_destino=None, log_cb=None, cancel_cb=None):
+def procesar_gpkg(ruta, out_ds, capas_existentes, resumen, capas_sin_crs, log_cb=None, cancel_cb=None):
     """Procesa todas las capas de un GPKG y las añade al GPKG de salida."""
     in_ds = abrir_gpkg(ruta)
     for i in range(in_ds.GetLayerCount()):
@@ -50,9 +47,11 @@ def procesar_gpkg(ruta, out_ds, capas_existentes, resumen, capas_sin_crs, epsg_d
 
         nombre_capa_salida = obtener_nombre_unico(f"{ruta.stem}_{in_layer.GetName()}", capas_existentes)
         try:
-            copiar_capa(in_layer, out_ds, nombre_capa_salida, epsg_destino)
-            msg = f"✅ {ruta.name} → {nombre_capa_salida} fusionada"
+            out_layer, epsg = copiar_capa(in_layer, out_ds, nombre_capa_salida)
+            msg = f"✅ {ruta.name} → {nombre_capa_salida} fusionada (EPSG: {epsg})"
             resumen.append(msg)
+            if not epsg or epsg == "None":
+                capas_sin_crs.append(nombre_capa_salida)
             if log_cb: log_cb(msg)
             QgsMessageLog.logMessage(msg, "GPKG Tools", Qgis.Info)
         except Exception as e:
@@ -78,7 +77,7 @@ def generar_resumen(salida, carpeta, resumen, capas_sin_crs, total_archivos, pro
         f.write("\n".join(resumen))
     return resumen_path
 
-def fusionar_vectores(carpeta, salida, epsg_destino=None, log_cb=None, cancel_cb=None):
+def fusionar_vectores(carpeta, salida, log_cb=None, cancel_cb=None):
     """Fusiona todos los GPKG de una carpeta y sus subcarpetas en un único GPKG."""
     carpeta = Path(carpeta)
     salida = Path(salida)
@@ -103,13 +102,12 @@ def fusionar_vectores(carpeta, salida, epsg_destino=None, log_cb=None, cancel_cb
         if cancel_cb and cancel_cb():
             if log_cb: log_cb("⏹ Cancelación detectada, deteniendo fusión...")
             break
-
         if not file.is_file():
             continue
 
         total_archivos += 1
         try:
-            procesar_gpkg(file, out_ds, capas_existentes, resumen, capas_sin_crs, epsg_destino, log_cb, cancel_cb)
+            procesar_gpkg(file, out_ds, capas_existentes, resumen, capas_sin_crs, log_cb, cancel_cb)
             procesados += 1
         except Exception as e:
             msg = f"❌ {file.name}: {e}"

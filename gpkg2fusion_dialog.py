@@ -7,7 +7,7 @@ from pathlib import Path
 from .gpkg2fusion_tool import fusionar_vectores
 import os
 
-# Cargar el UI (asegúrate de que el nombre del archivo .ui sea correcto)
+# Cargar el UI
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'gpkg2fusion_dialog.ui'))
 
@@ -22,7 +22,6 @@ class Gpkg2FusionDialog(QDialog, FORM_CLASS):
         super().__init__(parent)
         self.setupUi(self)
 
-        # Emisor de logs (señal thread-safe)
         self._log_emitter = LoggerEmitter()
         self._log_emitter.signal.connect(self._append_log_threadsafe)
 
@@ -34,13 +33,9 @@ class Gpkg2FusionDialog(QDialog, FORM_CLASS):
 
         self.task = None
         self.task_active = False
-
-        # Mensaje inicial
         self.logTextEdit.append("📦 Herramienta de fusión de GPKG")
 
     def _append_log_threadsafe(self, msg: str):
-        """Append al QTextEdit en hilo GUI (conectado a la señal)."""
-        # dejamos el append simple; la señal garantiza ejecución en hilo GUI
         self.logTextEdit.append(msg)
 
     def select_input_folder(self):
@@ -61,33 +56,31 @@ class Gpkg2FusionDialog(QDialog, FORM_CLASS):
             self.outputFileLineEdit.setText(path)
 
     def run_fusion(self):
-        input_path = Path(self.inputFolderLineEdit.text().strip())
-        output_path = Path(self.outputFileLineEdit.text().strip())
-        epsg_text = self.epsgLineEdit.text().strip()
+        # Leer entradas
+        input_text = self.inputFolderLineEdit.text().strip()
+        output_text = self.outputFileLineEdit.text().strip()
 
-       # Validaciones
-        input_path_text = str(input_path).strip()
-        if not input_path_text:
+        # Validaciones
+        if not input_text:
             QMessageBox.warning(self, "Error", "Debe seleccionar una carpeta de entrada.")
             return
-
-        if not input_path.exists() or not input_path.is_dir():
-            QMessageBox.warning(self, "Error", "Debe seleccionar una carpeta de entrada válida.")
+        if not output_text:
+            QMessageBox.warning(self, "Error", "Debe seleccionar un archivo de salida (.gpkg).")
             return
 
-        output_path_text = str(output_path).strip()
-        if not output_path_text:
-            QMessageBox.warning(self, "Error", "Debe seleccionar un archivo de salida (.gpkg).")
+        input_path = Path(input_text)
+        output_path = Path(output_text)
+
+        if not input_path.exists() or not input_path.is_dir():
+            QMessageBox.warning(self, "Error", "La carpeta de entrada no es válida.")
             return
 
         if not output_path.parent.exists():
             try:
                 output_path.parent.mkdir(parents=True, exist_ok=True)
-            except Exception:
-                QMessageBox.warning(self, "Error", "Ruta de salida no válida.")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"No se pudo crear la carpeta de salida:\n{e}")
                 return
-
-        epsg = int(epsg_text) if epsg_text.isdigit() else None
 
         # Limpiar log
         self.logTextEdit.clear()
@@ -97,7 +90,6 @@ class Gpkg2FusionDialog(QDialog, FORM_CLASS):
         self.task = GpkgToFusionTask(
             input_path,
             output_path,
-            epsg,
             log_emitter=self._log_emitter,
             dialog=self
         )
@@ -108,43 +100,36 @@ class Gpkg2FusionDialog(QDialog, FORM_CLASS):
     def cancel_task(self):
         if self.task_active and self.task:
             self.task.cancel()
-            # mostrar mensaje inmediato en GUI
             self.logTextEdit.append("⏹ Cancelando tarea...")
+
 
 # ----------------------------------------------------
 class GpkgToFusionTask(QgsTask):
-    def __init__(self, input_path, output_path, epsg, log_emitter: LoggerEmitter, dialog):
+    def __init__(self, input_path, output_path, log_emitter: LoggerEmitter, dialog):
         super().__init__("Fusión de GPKG")
         self.input_path = input_path
         self.output_path = output_path
-        self.epsg = epsg
         self.log_emitter = log_emitter
         self.dialog = dialog
         self.cancelled_flag = False
 
     def cancel(self):
-        # marcar cancelación (QgsTask.cancel() también hace trabajo interno)
         self.cancelled_flag = True
         return super().cancel()
 
     def run(self):
-        # Callbacks usados por gpkg2fusion_tool
         def cancel_cb():
             return self.cancelled_flag
 
         def log_cb(msg):
-            # registrar en QGIS message log inmediatamente
             QgsMessageLog.logMessage(msg, "GPKG Tools", Qgis.Info)
-            # emitir por la señal para que llegue al QTextEdit en hilo GUI
             if self.log_emitter:
                 self.log_emitter.signal.emit(msg)
 
         try:
-            # Ejecutar la fusión (esta función comprobará cancel_cb y llamará a log_cb)
             fusionar_vectores(
                 self.input_path,
                 self.output_path,
-                epsg_destino=self.epsg,
                 log_cb=log_cb,
                 cancel_cb=cancel_cb
             )
@@ -154,11 +139,9 @@ class GpkgToFusionTask(QgsTask):
         return True
 
     def finished(self, result):
-        # Marcar tarea como inactiva en el diálogo y reactivar botones
         if self.dialog:
             self.dialog.task_active = False
             if hasattr(self.dialog, "runButton"):
                 self.dialog.runButton.setEnabled(True)
-        # Mensaje final en GUI
         if self.log_emitter:
             self.log_emitter.signal.emit("✅ Tarea finalizada.")
